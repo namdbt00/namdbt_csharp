@@ -12,7 +12,7 @@ namespace projectapi.Middleware
         public async Task InvokeAsync(HttpContext context)
         {
             // Bỏ qua API login
-            if (context.Request.Path.StartsWithSegments("/api/login") || context.Request.Path.StartsWithSegments("/swagger/index.html") )
+            if (context.Request.Path.StartsWithSegments("/api/v1/login") || context.Request.Path.StartsWithSegments("/swagger/index.html") || context.Request.Path.StartsWithSegments("/swagger/v1/swagger.json"))
             {
                 await _next(context); // Bỏ qua middleware này
                 return;
@@ -23,7 +23,7 @@ namespace projectapi.Middleware
             if (string.IsNullOrEmpty(token))
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsync("Token is missing or invalid");
+                await context.Response.WriteAsync("Thiếu Token.");
                 return;
             }
 
@@ -43,28 +43,49 @@ namespace projectapi.Middleware
                 };
 
                 // Validate token và giải mã thông tin
-                var principal = tokenHandler.ValidateToken(token, parameters, out var validatedToken);
-
-                // Kiểm tra nếu token đã hết hạn
-                if (validatedToken is JwtSecurityToken jwtToken)
+                try
                 {
-                    var exp = jwtToken.Claims.FirstOrDefault(c => c.Type == "exp")?.Value;
-                    if (exp != null && DateTimeOffset.FromUnixTimeSeconds(long.Parse(exp)) < DateTimeOffset.UtcNow)
+                    var principal = tokenHandler.ValidateToken(token, parameters, out var validatedToken);
+                    // Kiểm tra nếu token đã hết hạn
+                    if (validatedToken is JwtSecurityToken jwtToken)
                     {
-                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                        await context.Response.WriteAsync("Token has expired");
-                        return;
+                        var exp = jwtToken.Claims.FirstOrDefault(c => c.Type == "exp")?.Value;
+                        if (exp != null && DateTimeOffset.FromUnixTimeSeconds(long.Parse(exp)) < DateTimeOffset.UtcNow)
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            await context.Response.WriteAsync("Token hết hạn.");
+                            return;
+                        }
                     }
+
+                    // Nếu token hợp lệ, tiếp tục xử lý request
+                    context.User = principal;
+                    await _next(context);
+                }
+                catch (SecurityTokenExpiredException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync("Token hết hạn.");
+                    return;
+                }
+                catch (SecurityTokenInvalidSignatureException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync("Token có chữ ký không hợp lệ.");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsync($"Lỗi xác thực token: {ex.Message}");
+                    return;
                 }
 
-                // Nếu token hợp lệ, tiếp tục xử lý request
-                context.User = principal;
-                await _next(context);
             }
             catch (Exception)
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsync("Invalid token");
+                await context.Response.WriteAsync("Token không hợp lệ.");
             }
         }
     }

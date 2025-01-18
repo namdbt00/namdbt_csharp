@@ -41,18 +41,18 @@ namespace projectapi.Controllers
         {
             var claims = new[]
             {
-            new Claim(JwtRegisteredClaimNames.Sub, _accountSettings.Username ?? ""),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+                new Claim(JwtRegisteredClaimNames.Sub, _accountSettings.Username ?? ""),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Key ?? ""));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret ?? ""));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
                 issuer: _jwtSettings.Issuer,
                 audience: _jwtSettings.Audience,
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(_jwtSettings.ExpirationMinutes),
+                expires: DateTime.Now.AddMinutes(_jwtSettings.ExpirationMinutes), // Đặt thời gian hết hạn
                 signingCredentials: creds
             );
 
@@ -196,7 +196,7 @@ namespace projectapi.Controllers
                 existingStudent!.FirstName = studentRequest.FirstName;
                 existingStudent.LastName = studentRequest.LastName;
                 existingStudent.ClassId = studentRequest.ClassId;
-                existingStudent.Gender = studentRequest.Gender != 0 ? studentRequest.Gender : existingStudent.Gender;;
+                existingStudent.Gender = studentRequest.Gender != 0 ? studentRequest.Gender : existingStudent.Gender; ;
                 existingStudent.DayOfBirth = studentRequest.DayOfBirth ?? existingStudent.DayOfBirth;
                 existingStudent.Avatar = studentRequest.Avatar ?? existingStudent.Avatar;
 
@@ -314,13 +314,13 @@ namespace projectapi.Controllers
 
     public class StudentRequestDto
     {
-        [Required(ErrorMessage = "First name is required.")]
+        [Required(ErrorMessage = "Họ học sinh là bắt buốc.")]
         public string FirstName { get; set; } = "";
 
-        [Required(ErrorMessage = "Last name is required.")]
+        [Required(ErrorMessage = "Tên học sinh là bắt buộc.")]
         public string LastName { get; set; } = "";
 
-        [Required(ErrorMessage = "ClassId is required.")]
+        [Required(ErrorMessage = "Id lớp là bắt buộc.")]
         public Guid ClassId { get; set; }
         public short Gender { get; set; } = 1;
         public DateTime? DayOfBirth { get; set; }
@@ -330,7 +330,7 @@ namespace projectapi.Controllers
     public class StudentResponseDto
     {
         public string Msg { get; set; } = "";
-        public string StudentId { get; set; } = "";
+        public string? StudentId { get; set; } = "";
     }
 }
 
