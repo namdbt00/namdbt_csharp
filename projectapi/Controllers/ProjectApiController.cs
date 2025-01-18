@@ -1,11 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using cloud.core.mongodb;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Bson;
@@ -25,7 +25,7 @@ namespace projectapi.Controllers
         private readonly SampleMongodbConnect _db = db;
 
         [AllowAnonymous]
-        [HttpPost("login")]
+        [HttpPost("v1/login")]
         public IActionResult Login([FromBody] LoginRequest request)
         {
             if (request.Username == _accountSettings.Username && request.Password == _accountSettings.Password)
@@ -34,7 +34,7 @@ namespace projectapi.Controllers
                 return Ok(new { Code = 1, Data = token });
             }
 
-            return Ok(new { Code = 2, Data = "Invalid username or password" });
+            return Ok(new { Code = 2, Data = "Thông tin đăng nhập không chính xác." });
         }
 
         private string GenerateJwtToken()
@@ -60,124 +60,190 @@ namespace projectapi.Controllers
         }
 
 
-        [HttpGet("get-class")]
+        [HttpGet("v1/class/load")]
         public ActionResult<List<ClassEntity>> GetClass()
         {
-            var users = _db.NamClass?.ToList();
+            var users = _db.NamClass.ToList();
             return Ok(users);
         }
 
-        // API Thêm mới học sinh
-        [HttpPost("create-student")]
-        public async Task<IActionResult> AddStudent([FromBody] StudentRequestDto studentRequest)
+
+        [HttpGet("v1/student/load")]
+        public IActionResult GetStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 45, [FromQuery] Guid? classId = null)
         {
-            // Kiểm tra model validation
-            if (!ModelState.IsValid)
+            try
             {
-                return BadRequest(ModelState);
+                var skip = (page - 1) * pageSize;
+
+                var query = _db.NamStudent.AsQueryable();
+
+                // Lọc theo classId nếu có
+                if (classId.HasValue)
+                {
+                    query = query.Where(student => student.ClassId == classId.Value);
+                }
+
+                var totalStudents = query.Count();
+
+                // Phân trang và sắp xếp
+                var studentList = query
+                    // Sắp xếp tiếng Việt
+                    .Skip(skip)
+                    .Take(pageSize)
+                    .ToList();
+
+                studentList = [.. studentList.OrderBy(student => student.LastName, StringComparer.Create(new CultureInfo("vi-VN"), ignoreCase: true))];
+
+                return Ok(new
+                {
+                    totalItems = totalStudents,
+                    totalPages = (int)Math.Ceiling((double)totalStudents / pageSize),
+                    currentPage = page,
+                    pagesize = pageSize,
+                    data = studentList
+                });
             }
-            // Kiểm tra sự tồn tại của ClassId trong collection Classes
-            if (!IsValidClass(studentRequest.ClassId.ToString()))
+            catch (Exception ex)
             {
-                return BadRequest("The specified ClassId does not exist.");
+                return BadRequest(ex.Message);
             }
-            // Kiểm tra nếu đường dẫn avatar có hợp lệ không
-            if (!string.IsNullOrEmpty(studentRequest.Avatar) && !IsValidImageFormat(studentRequest.Avatar))
+        }
+
+        // API Thêm mới học sinh
+        [HttpPost("v1/student/create")]
+        public async Task<IActionResult> CreateStudent([FromBody] StudentRequestDto studentRequest)
+        {
+            try
             {
-                return BadRequest("Avatar image format is invalid. Only jpg, png, jpeg are allowed.");
+                // Kiểm tra model validation
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+                // Kiểm tra sự tồn tại của ClassId trong collection Classes
+                if (!IsValidClass(studentRequest.ClassId.ToString()))
+                {
+                    return BadRequest("ClassId không hợp lệ.");
+                }
+                // Kiểm tra nếu đường dẫn avatar có hợp lệ không
+                if (!string.IsNullOrEmpty(studentRequest.Avatar) && !IsValidImageFormat(studentRequest.Avatar))
+                {
+                    return BadRequest("Avatar phải có dạng jpg/png/jpeg.");
+                }
+
+                // Tạo StudentEntity
+                var student = new StudentEntity
+                {
+                    StudentId = Guid.NewGuid(),
+                    FirstName = studentRequest.FirstName,
+                    LastName = studentRequest.LastName,
+                    ClassId = studentRequest.ClassId,
+                    Gender = studentRequest.Gender,
+                    DayOfBirth = studentRequest.DayOfBirth,
+                    Avatar = studentRequest.Avatar
+                };
+
+                // Thêm vào database
+                await _db.NamStudent.Insert(student);
+
+                var studentResponse = new StudentResponseDto
+                {
+                    Msg = "Tạo học sinh thành công.",
+                    StudentId = student.StudentId.ToString(),
+                };
+
+
+                return Ok(studentResponse);
             }
-
-            // Tạo StudentEntity
-            var student = new StudentEntity
+            catch (Exception ex)
             {
-                StudentId = Guid.NewGuid(),
-                FirstName = studentRequest.FirstName,
-                LastName = studentRequest.LastName,
-                ClassId = studentRequest.ClassId,
-                Gender = studentRequest.Gender,
-                DayOfBirth = studentRequest.DayOfBirth,
-                Avatar = studentRequest.Avatar
-            };
-
-            // Thêm vào database
-            await _db.NamStudent!.Insert(student);
-
-            var studentResponse = new StudentResponseDto
-            {
-                Msg = "Tạo học sinh thành công",
-                StudentId = student.StudentId.ToString(),
-            };
-
-
-            return Ok(studentResponse);
+                return BadRequest(ex.Message);
+            }
         }
 
         // API Câp nhật học sinh
-        [HttpPut("update-student/{studentId}")]
+        [HttpPut("v1/student/update/{studentId}")]
         public async Task<IActionResult> UpdateStudent(string studentId, [FromBody] StudentRequestDto studentRequest)
         {
-            if (!IsStudentExist(studentId))
+            try
             {
-                return BadRequest("Student not found.");
+
+                if (!IsStudentExist(studentId))
+                {
+                    return BadRequest("Không tìm thấy học sinh.");
+                }
+                // Kiểm tra model validation
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+                // Kiểm tra sự tồn tại của ClassId trong collection Classes
+                if (!IsValidClass(studentRequest.ClassId.ToString()))
+                {
+                    return BadRequest("ClassId không hợp lệ.");
+                }
+                // Kiểm tra nếu đường dẫn avatar có hợp lệ không
+                if (!string.IsNullOrEmpty(studentRequest.Avatar) && !IsValidImageFormat(studentRequest.Avatar))
+                {
+                    return BadRequest("Avatar phải có dạng jpg/png/jpeg.");
+                }
+
+                // Tạo StudentEntity
+                var studentGuid = Guid.Parse(studentId);
+                var existingStudent = _db.NamStudent.Where(u => u.StudentId == studentGuid).FirstOrDefault();
+
+                // Cập nhật thông tin học sinh
+                existingStudent!.FirstName = studentRequest.FirstName;
+                existingStudent.LastName = studentRequest.LastName;
+                existingStudent.ClassId = studentRequest.ClassId;
+                existingStudent.Gender = studentRequest.Gender != 0 ? studentRequest.Gender : existingStudent.Gender;;
+                existingStudent.DayOfBirth = studentRequest.DayOfBirth ?? existingStudent.DayOfBirth;
+                existingStudent.Avatar = studentRequest.Avatar ?? existingStudent.Avatar;
+
+
+                // Thêm vào database
+                await _db.NamStudent.Update(existingStudent);
+
+                var studentResponse = new StudentResponseDto
+                {
+                    Msg = "Cập nhật học sinh thành công.",
+                    StudentId = existingStudent.StudentId.ToString(),
+                };
+                return Ok(studentResponse);
             }
-            // Kiểm tra model validation
-            if (!ModelState.IsValid)
+            catch (Exception ex)
             {
-                return BadRequest(ModelState);
+                return BadRequest(ex.Message);
             }
-            // Kiểm tra sự tồn tại của ClassId trong collection Classes
-            if (!IsValidClass(studentRequest.ClassId.ToString()))
-            {
-                return BadRequest("The specified ClassId does not exist.");
-            }
-            // Kiểm tra nếu đường dẫn avatar có hợp lệ không
-            if (!string.IsNullOrEmpty(studentRequest.Avatar) && !IsValidImageFormat(studentRequest.Avatar))
-            {
-                return BadRequest("Avatar image format is invalid. Only jpg, png, jpeg are allowed.");
-            }
-
-            // Tạo StudentEntity
-            var student = new StudentEntity
-            {
-                StudentId = Guid.NewGuid(),
-                FirstName = studentRequest.FirstName,
-                LastName = studentRequest.LastName,
-                ClassId = studentRequest.ClassId,
-                Gender = studentRequest.Gender,
-                DayOfBirth = studentRequest.DayOfBirth,
-                Avatar = studentRequest.Avatar
-            };
-
-            // Thêm vào database
-            await _db.NamStudent!.Update(student);
-
-            var studentResponse = new StudentResponseDto
-            {
-                Msg = "Tạo học sinh thành công",
-                StudentId = student.StudentId.ToString(),
-            };
-
-
-            return Ok(studentResponse);
         }
 
         // API Xoá học sinh
-        [HttpDelete("{studentId}")]
+        [HttpDelete("v1/student/delete/{studentId}")]
         public async Task<IActionResult> DeleteStudent(string studentId)
         {
 
-            if (!IsStudentExist(studentId))
+            try
             {
-                return BadRequest("Student not found.");
+                if (!IsStudentExist(studentId))
+                {
+                    return BadRequest("Không tìm thấy học sinh.");
+                }
+                else
+                {
+                    var studentGuid = Guid.Parse(studentId);
+                    var student = _db.NamStudent.Where(u => u.StudentId == studentGuid).FirstOrDefault();
+                    await _db.NamStudent.Delete(student!.Id);
+                }
+                var studentResponse = new StudentResponseDto
+                {
+                    Msg = "Xoá học sinh thành công.",
+                };
+                return Ok(studentResponse);
             }
-            else
+            catch (Exception ex)
             {
-                var studentGuid = Guid.Parse(studentId);
-                var student = _db.NamStudent?.Where(u => u.StudentId == studentGuid).FirstOrDefault();
-                await _db.NamStudent!.Delete(student!.Id);
+                return BadRequest(ex.Message);
             }
-
-            return NoContent();
         }
 
 
@@ -193,32 +259,14 @@ namespace projectapi.Controllers
         // Kiểm tra lớp có tồn tại không
         private bool IsValidClass(string classId)
         {
-            var clazz = _db.NamClass?.Where(u => u.ClassId.ToString() == classId).FirstOrDefault();
+            var clazz = _db.NamClass.Where(u => u.ClassId.ToString() == classId).FirstOrDefault();
             return clazz != null;
         }
 
         private bool IsStudentExist(string studentId)
         {
-            // Chuyển đổi studentId từ string sang Guid
-            // var studentGuid = Guid.Parse(studentId);
-
-            // // Tạo BsonBinaryData với Legacy GuidRepresentation
-            // var bsonBinaryData = new BsonBinaryData(studentGuid, GuidRepresentation.Standard);
-
-            // Console.WriteLine(studentGuid);
-
-            // var std = _db.NamStudent?.FirstOrDefault();
-
-            // Console.WriteLine(std?.StudentId.ToString());
-
-            // // Console.WriteLine(ConvertLuuidToGuid(std?.StudentId.ToString() ?? ""));
-
-            // var students = _db.NamStudent?.ToList();
-
-            // var student = students?.Where(u => u.StudentId.ToString() == studentId).FirstOrDefault();
-
             var studentGuid = Guid.Parse(studentId);
-            var student = _db.NamStudent?.Where(u => u.StudentId == studentGuid).FirstOrDefault();
+            var student = _db.NamStudent.Where(u => u.StudentId == studentGuid).FirstOrDefault();
             return student != null;
         }
     }
@@ -274,7 +322,6 @@ namespace projectapi.Controllers
 
         [Required(ErrorMessage = "ClassId is required.")]
         public Guid ClassId { get; set; }
-
         public short Gender { get; set; } = 1;
         public DateTime? DayOfBirth { get; set; }
         public string Avatar { get; set; } = "";  // Đây là trường chứa đường dẫn hình ảnh

@@ -9,8 +9,8 @@ public class SampleMongodbConnect : BaseMongoObjectIdDbContext
 {
     public SampleMongodbConnect() : base(AppSettingsHelper.GetValueByKey("SampleMongodbConnect:ConnectionString")){}
 
-    public DbSetObjectId<ClassEntity>? NamClass { get; set;}  
+    public required DbSetObjectId<ClassEntity> NamClass { get; set;}  
 
-    public DbSetObjectId<StudentEntity>? NamStudent { get; set;}     
+    public required DbSetObjectId<StudentEntity> NamStudent { get; set;}     
 
 }

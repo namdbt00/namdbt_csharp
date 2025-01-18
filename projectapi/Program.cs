@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using MongoDB.Driver;
 using projectapi.Models;
+using projectapi.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
