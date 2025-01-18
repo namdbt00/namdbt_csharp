@@ -82,3 +82,4 @@ D:\OMT\namdbt_csharp\projectapi\obj\Debug\net8.0\refint\projectapi.dll
 D:\OMT\namdbt_csharp\projectapi\obj\Debug\net8.0\projectapi.pdb
 D:\OMT\namdbt_csharp\projectapi\obj\Debug\net8.0\projectapi.genruntimeconfig.cache
 D:\OMT\namdbt_csharp\projectapi\obj\Debug\net8.0\ref\projectapi.dll
+D:\OMT\namdbt_csharp\projectapi\obj\Debug\net8.0\projectapi.sourcelink.json

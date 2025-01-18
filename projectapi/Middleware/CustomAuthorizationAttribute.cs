@@ -11,6 +11,13 @@ namespace projectapi.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
+            // Bỏ qua API login
+            if (context.Request.Path.StartsWithSegments("/api/login") || context.Request.Path.StartsWithSegments("/swagger/index.html") )
+            {
+                await _next(context); // Bỏ qua middleware này
+                return;
+            }
+
             var token = context.Request.Headers.Authorization.ToString()?.Replace("Bearer ", "").Trim();
 
             if (string.IsNullOrEmpty(token))

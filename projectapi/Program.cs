@@ -49,11 +49,11 @@ builder.Services.AddSingleton<SampleMongodbConnect>();
 
 var app = builder.Build();
 
-// Các middleware khác...
-app.UseAuthorization();
+// Thêm middleware xác thực JWT
+app.UseAuthentication();
 
-// Đảm bảo chỉ các API cần xác thực JWT mới yêu cầu token
-app.MapControllers();
+// Thêm middleware kiểm tra JWT
+// app.UseMiddleware<JwtValidationMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

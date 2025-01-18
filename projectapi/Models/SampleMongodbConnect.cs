@@ -1,25 +1,16 @@
 
 using cloud.core;
 using cloud.core.mongodb;
+using projectapi.Controllers;
 
 namespace projectapi.Models;
 
 public class SampleMongodbConnect : BaseMongoObjectIdDbContext
 {
-    public SampleMongodbConnect() : base(AppSettingsHelper.GetValueByKey("SampleMongodbConnect:ConnectionString"))
-    {
+    public SampleMongodbConnect() : base(AppSettingsHelper.GetValueByKey("SampleMongodbConnect:ConnectionString")){}
 
-    }
+    public DbSetObjectId<ClassEntity>? NamClass { get; set;}  
 
-    public DbSetObjectId<SampleEntity> Samples { get; set; }    
+    public DbSetObjectId<StudentEntity>? NamStudent { get; set;}     
 
-}
-
-
-public class SampleEntity : AbstractEntityObjectIdTracking
-{
-    public string Name { get; set; } = "";
-    public string Version { get; set; } = "";
-
-    public object Settings { get; set; } = new object() { };
 }
