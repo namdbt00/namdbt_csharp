@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using MongoDB.Driver.Linq;
 using projectapi.Models;
 
 namespace projectapi.Controllers
@@ -172,7 +173,7 @@ namespace projectapi.Controllers
             else
             {
                 var studentGuid = Guid.Parse(studentId);
-                var student = _db.NamStudent?.Where(u => u.StudentId.ToString() == studentId).FirstOrDefault();
+                var student = _db.NamStudent?.Where(u => u.StudentId == studentGuid).FirstOrDefault();
                 await _db.NamStudent!.Delete(student!.Id);
             }
 
@@ -199,12 +200,25 @@ namespace projectapi.Controllers
         private bool IsStudentExist(string studentId)
         {
             // Chuyển đổi studentId từ string sang Guid
-            var studentGuid = Guid.Parse("9A12E7E7-B556-374B-8B7D-894B090ECBEB");
+            // var studentGuid = Guid.Parse(studentId);
 
-            // Tạo BsonBinaryData với Legacy GuidRepresentation
-            var bsonBinaryData = new BsonBinaryData(studentGuid, GuidRepresentation.PythonLegacy);
-            
-            var student = _db.NamStudent?.Where(u => u.StudentId == bsonBinaryData).FirstOrDefault();
+            // // Tạo BsonBinaryData với Legacy GuidRepresentation
+            // var bsonBinaryData = new BsonBinaryData(studentGuid, GuidRepresentation.Standard);
+
+            // Console.WriteLine(studentGuid);
+
+            // var std = _db.NamStudent?.FirstOrDefault();
+
+            // Console.WriteLine(std?.StudentId.ToString());
+
+            // // Console.WriteLine(ConvertLuuidToGuid(std?.StudentId.ToString() ?? ""));
+
+            // var students = _db.NamStudent?.ToList();
+
+            // var student = students?.Where(u => u.StudentId.ToString() == studentId).FirstOrDefault();
+
+            var studentGuid = Guid.Parse(studentId);
+            var student = _db.NamStudent?.Where(u => u.StudentId == studentGuid).FirstOrDefault();
             return student != null;
         }
     }

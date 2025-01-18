@@ -2,7 +2,6 @@ using projectapi.Controllers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using projectapi.Middleware;
 using MongoDB.Driver;
 using projectapi.Models;
 
